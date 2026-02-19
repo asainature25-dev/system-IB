@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>システム運用とIB報酬の収益試算表</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body { font-family: sans-serif; padding: 20px; }
+input, select { margin: 5px; padding: 5px; }
+</style>
+</head>
+<body>
+
+<h2>システム運用とIB報酬の収益試算表</h2>
+
+<h3>前提条件</h3>
+運用金額：<input type="number" id="capital" value="100000"> 円<br>
+月利：<input type="number" id="monthlyRate" value="4"> %<br>
+IB（$/lot）：<input type="number" id="ibPerLot" value="5"><br>
+運用期間：
+<select id="period">
+<option value="6">6ヶ月</option>
+<option value="12" selected>12ヶ月</option>
+<option value="18">18ヶ月</option>
+<option value="24">24ヶ月</option>
+</select>
+<br><br>
+<button onclick="calculate()">試算する</button>
+
+<h3>結果</h3>
+<p id="systemMonthly"></p>
+<p id="ibMonthlyUSD"></p>
+<p id="ibMonthlyJPY"></p>
+<p id="initialYield"></p>
+<p id="annualYield"></p>
+
+<canvas id="growthChart"></canvas>
+
+<script>
+function calculate() {
+  const capital = parseFloat(document.getElementById('capital').value);
+  const rate = parseFloat(document.getElementById('monthlyRate').value) / 100;
+  const ibPerLot = parseFloat(document.getElementById('ibPerLot').value);
+  const months = parseInt(document.getElementById('period').value);
+  const lot = 1.3;
+  const usdJpy = 150;
+
+  const systemMonthly = capital * rate;
+  const ibUSD = lot * ibPerLot;
+  const ibJPY = ibUSD * usdJpy;
+
+  document.getElementById('systemMonthly').innerText = `システム利益：約${systemMonthly.toFixed(0)}円 / 月`;
+  document.getElementById('ibMonthlyUSD').innerText = `セルフIB：約$${ibUSD.toFixed(2)} / 月`;
+  document.getElementById('ibMonthlyJPY').innerText = `セルフIB：約${ibJPY.toFixed(0)}円 / 月`;
+
+  const initialYield = ((systemMonthly + ibJPY) / capital) * 100;
+  document.getElementById('initialYield').innerText = `初月利回り：約${initialYield.toFixed(2)}%`;
+
+  const annualYield = initialYield * 12;
+  document.getElementById('annualYield').innerText = `年利予測：約${annualYield.toFixed(2)}%`;
+
+  let balances = [];
+  let labels = [];
+  let current = capital;
+
+  for (let i = 1; i <= months; i++) {
+    const profit = current * rate;
+    current += profit;
+    balances.push(current);
+    labels.push(i + 'ヶ月');
+  }
+
+  const ctx = document.getElementById('growthChart').getContext('2d');
+  if (window.chart) window.chart.destroy();
+
+  window.chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '資産推移',
+        data: balances
+      }]
+    }
+  });
+}
+</script>
+
+</body>
+</html>
