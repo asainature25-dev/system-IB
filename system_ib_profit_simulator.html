@@ -1,90 +1,499 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>システム運用とIB報酬の収益試算表</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-body { font-family: sans-serif; padding: 20px; }
-input, select { margin: 5px; padding: 5px; }
-</style>
-</head>
-<body>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>システム運用とIB報酬の収益試算表</title>
 
-<h2>システム運用とIB報酬の収益試算表</h2>
+  <!-- Chart.js（GitHub Pagesでも安定） -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-<h3>前提条件</h3>
-運用金額：<input type="number" id="capital" value="100000"> 円<br>
-月利：<input type="number" id="monthlyRate" value="4"> %<br>
-IB（$/lot）：<input type="number" id="ibPerLot" value="5"><br>
-運用期間：
-<select id="period">
-<option value="6">6ヶ月</option>
-<option value="12" selected>12ヶ月</option>
-<option value="18">18ヶ月</option>
-<option value="24">24ヶ月</option>
-</select>
-<br><br>
-<button onclick="calculate()">試算する</button>
-
-<h3>結果</h3>
-<p id="systemMonthly"></p>
-<p id="ibMonthlyUSD"></p>
-<p id="ibMonthlyJPY"></p>
-<p id="initialYield"></p>
-<p id="annualYield"></p>
-
-<canvas id="growthChart"></canvas>
-
-<script>
-function calculate() {
-  const capital = parseFloat(document.getElementById('capital').value);
-  const rate = parseFloat(document.getElementById('monthlyRate').value) / 100;
-  const ibPerLot = parseFloat(document.getElementById('ibPerLot').value);
-  const months = parseInt(document.getElementById('period').value);
-  const lot = 1.3;
-  const usdJpy = 150;
-
-  const systemMonthly = capital * rate;
-  const ibUSD = lot * ibPerLot;
-  const ibJPY = ibUSD * usdJpy;
-
-  document.getElementById('systemMonthly').innerText = `システム利益：約${systemMonthly.toFixed(0)}円 / 月`;
-  document.getElementById('ibMonthlyUSD').innerText = `セルフIB：約$${ibUSD.toFixed(2)} / 月`;
-  document.getElementById('ibMonthlyJPY').innerText = `セルフIB：約${ibJPY.toFixed(0)}円 / 月`;
-
-  const initialYield = ((systemMonthly + ibJPY) / capital) * 100;
-  document.getElementById('initialYield').innerText = `初月利回り：約${initialYield.toFixed(2)}%`;
-
-  const annualYield = initialYield * 12;
-  document.getElementById('annualYield').innerText = `年利予測：約${annualYield.toFixed(2)}%`;
-
-  let balances = [];
-  let labels = [];
-  let current = capital;
-
-  for (let i = 1; i <= months; i++) {
-    const profit = current * rate;
-    current += profit;
-    balances.push(current);
-    labels.push(i + 'ヶ月');
-  }
-
-  const ctx = document.getElementById('growthChart').getContext('2d');
-  if (window.chart) window.chart.destroy();
-
-  window.chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: '資産推移',
-        data: balances
-      }]
+  <style>
+    :root{
+      --bg: #eaf6ea;          /* 優しい緑 */
+      --card: #ffffff;
+      --text: #1f2a1f;
+      --muted: #556b55;
+      --border: #d6e7d6;
+      --accent: #2f7d32;
+      --accent-weak: #dff0e0;
+      --shadow: 0 8px 22px rgba(25, 60, 25, 0.08);
+      --radius: 14px;
     }
-  });
-}
-</script>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
 
+    header{
+      padding: 22px 18px 10px;
+      max-width: 1150px;
+      margin: 0 auto;
+    }
+    h1{
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: .02em;
+    }
+    .sub{
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .wrap{
+      max-width: 1150px;
+      margin: 0 auto;
+      padding: 14px 18px 32px;
+    }
+
+    .grid{
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr; /* 左：試算　右：表 */
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .card h2{
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+
+    .section-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom: 10px;
+    }
+    .pill{
+      font-size: 12px;
+      color: var(--accent);
+      background: var(--accent-weak);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .form{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 12px;
+      margin-top: 6px;
+    }
+    @media (max-width: 520px){
+      .form{ grid-template-columns: 1fr; }
+    }
+    label{
+      display:block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input, select{
+      width: 100%;
+      padding: 10px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      outline: none;
+      font-size: 14px;
+      background: #fff;
+    }
+    input:focus, select:focus{
+      border-color: rgba(47,125,50,.5);
+      box-shadow: 0 0 0 3px rgba(47,125,50,.12);
+    }
+
+    .row{
+      display:flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button{
+      appearance: none;
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:active{ transform: translateY(1px); }
+    .ghost{
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(47,125,50,.35);
+    }
+
+    .results{
+      margin-top: 12px;
+      border-top: 1px dashed var(--border);
+      padding-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 12px;
+    }
+    @media (max-width: 520px){
+      .results{ grid-template-columns: 1fr; }
+    }
+    .kv{
+      background: #fbfefb;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .kv .k{
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .kv .v{
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .chart-wrap{
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+    }
+    canvas{ width: 100% !important; height: 320px !important; }
+
+    /* 折りたたみ（details/summary） */
+    details{
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fbfefb;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    summary{
+      cursor: pointer;
+      list-style: none;
+      padding: 12px 12px;
+      font-weight: 800;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    summary::-webkit-details-marker { display:none; }
+    .chev{
+      width: 10px; height: 10px;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg);
+      transition: transform .15s ease;
+      margin-left: auto;
+      flex: 0 0 auto;
+    }
+    details[open] .chev{ transform: rotate(-135deg); }
+
+    .details-body{
+      padding: 0 12px 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    table{
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    th, td{
+      border-bottom: 1px solid var(--border);
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th{
+      color: var(--muted);
+      font-weight: 800;
+      background: #f3fbf3;
+    }
+
+    .notes{
+      margin: 10px 0 0;
+      padding-left: 1.2em;
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 13px;
+    }
+    .notes li{ margin: 6px 0; }
+
+    .mini{
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>システム運用とIB報酬の収益試算表</h1>
+    <p class="sub">
+      入力した前提条件から、月次収益・利回り・資産推移を試算します。右側に早見表と注意事項（折りたたみ）を表示します。
+    </p>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+
+      <!-- 左：試算 -->
+      <section class="card">
+        <div class="section-title">
+          <h2 style="margin:0;">試算</h2>
+          <span class="pill">ロット変更（試算用）対応</span>
+        </div>
+
+        <div class="form">
+          <div>
+            <label for="capital">運用金額（円）</label>
+            <input type="number" id="capital" value="100000" min="0" step="1000">
+          </div>
+
+          <div>
+            <label for="monthlyRate">月利（%）</label>
+            <input type="number" id="monthlyRate" value="4" step="0.01" min="0">
+          </div>
+
+          <div>
+            <label for="monthlyLots">月間lot数（試算用）</label>
+            <input type="number" id="monthlyLots" value="1.3" step="0.01" min="0">
+          </div>
+
+          <div>
+            <label for="ibPerLot">IB（$/lot）</label>
+            <input type="number" id="ibPerLot" value="5" step="0.01" min="0">
+          </div>
+
+          <div>
+            <label for="usdJpy">ドル円レート（円）</label>
+            <input type="number" id="usdJpy" value="150" step="0.1" min="0">
+          </div>
+
+          <div>
+            <label for="period">運用期間</label>
+            <select id="period">
+              <option value="6">6ヶ月</option>
+              <option value="12" selected>12ヶ月</option>
+              <option value="18">18ヶ月</option>
+              <option value="24">24ヶ月</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <button onclick="calculate()">試算する</button>
+          <button class="ghost" onclick="resetDefaults()">初期値に戻す</button>
+          <span class="mini">※グラフは「システム利益は複利、IBは毎月一定円を加算」で試算</span>
+        </div>
+
+        <div class="results" aria-live="polite">
+          <div class="kv">
+            <div class="k">システム利益（円 / 月・初月）</div>
+            <div class="v" id="systemMonthly">—</div>
+          </div>
+          <div class="kv">
+            <div class="k">セルフIB（$ / 月）</div>
+            <div class="v" id="ibMonthlyUSD">—</div>
+          </div>
+          <div class="kv">
+            <div class="k">セルフIB（円 / 月）</div>
+            <div class="v" id="ibMonthlyJPY">—</div>
+          </div>
+          <div class="kv">
+            <div class="k">合計収益（円 / 月・初月）</div>
+            <div class="v" id="totalMonthlyJPY">—</div>
+          </div>
+          <div class="kv">
+            <div class="k">初月利回り（IB込み）</div>
+            <div class="v" id="initialYield">—</div>
+          </div>
+          <div class="kv">
+            <div class="k">年利予測（単純換算）</div>
+            <div class="v" id="annualYield">—</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="growthChart"></canvas>
+        </div>
+      </section>
+
+      <!-- 右：早見表＋注意事項（折りたたみ） -->
+      <aside class="card">
+        <div class="section-title">
+          <h2 style="margin:0;">早見表 / 注意事項</h2>
+          <span class="pill">折りたたみOK</span>
+        </div>
+
+        <details open>
+          <summary>
+            資金別 推奨ロット早見表（10万単位）
+            <span class="chev" aria-hidden="true"></span>
+          </summary>
+          <div class="details-body">
+            <table>
+              <thead>
+                <tr>
+                  <th>資金</th>
+                  <th>AI39 推奨ロット</th>
+                  <th>ドル円・ユーロドル 推奨ロット</th>
+                  <th>倍率（AI39 / ドル円ユーロドル）</th>
+                  <th>月間lot数（AI39 / ドル円ユーロドル）</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>10万</td><td>0.01〜0.02</td><td>0.02</td><td>1 / 0.2</td><td>1.3 / 0.94</td></tr>
+                <tr><td>20万</td><td>0.02〜0.04</td><td>0.04</td><td>2 / 0.4</td><td>2.6 / 1.88</td></tr>
+                <tr><td>30万</td><td>0.03〜0.06</td><td>0.06</td><td>3 / 0.6</td><td>3.9 / 2.82</td></tr>
+                <tr><td>40万</td><td>0.04〜0.08</td><td>0.08</td><td>4 / 0.8</td><td>5.2 / 3.76</td></tr>
+                <tr><td>50万</td><td>0.05〜0.10</td><td>0.10</td><td>5 / 1.0</td><td>6.5 / 4.70</td></tr>
+                <tr><td>60万</td><td>0.06〜0.12</td><td>0.12</td><td>6 / 1.2</td><td>7.8 / 5.64</td></tr>
+                <tr><td>70万</td><td>0.07〜0.14</td><td>0.14</td><td>7 / 1.4</td><td>9.1 / 6.58</td></tr>
+                <tr><td>80万</td><td>0.08〜0.16</td><td>0.16</td><td>8 / 1.6</td><td>10.4 / 7.52</td></tr>
+                <tr><td>90万</td><td>0.09〜0.18</td><td>0.18</td><td>9 / 1.8</td><td>11.7 / 8.46</td></tr>
+                <tr><td>100万</td><td>0.10〜0.20</td><td>0.20</td><td>10 / 2.0</td><td>13.0 / 9.40</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+
+        <details>
+          <summary>
+            注意事項
+            <span class="chev" aria-hidden="true"></span>
+          </summary>
+          <div class="details-body">
+            <ul class="notes">
+              <li>ロット数は相場状況により変動します。</li>
+              <li>本早見表の数値は過去の運用実績をもとに算出しており、将来の運用結果やロット数を保証するものではありません。</li>
+              <li>本システムのロットは自動調整ではなく手動設定となります。</li>
+              <li>ロット変更をご希望の場合は、エンジニア直通の公式LINEよりお問い合わせください。</li>
+            </ul>
+          </div>
+        </details>
+
+        <p class="mini">
+          ※ 右側の「月間lot数」は早見としての参考値です。試算は左の「月間lot数（試算用）」で自由に変更できます。
+        </p>
+      </aside>
+
+    </div>
+  </div>
+
+  <script>
+    function yen(n){
+      return new Intl.NumberFormat('ja-JP').format(Math.round(n));
+    }
+
+    function calculate() {
+      const capital = parseFloat(document.getElementById('capital').value);
+      const rate = parseFloat(document.getElementById('monthlyRate').value) / 100;
+      const months = parseInt(document.getElementById('period').value, 10);
+
+      const monthlyLots = parseFloat(document.getElementById('monthlyLots').value);
+      const ibPerLot = parseFloat(document.getElementById('ibPerLot').value);
+      const usdJpy = parseFloat(document.getElementById('usdJpy').value);
+
+      if (!isFinite(capital) || capital <= 0) { alert("運用金額を正しく入力して"); return; }
+      if (!isFinite(rate) || rate < 0) { alert("月利を正しく入力して"); return; }
+      if (!isFinite(monthlyLots) || monthlyLots < 0) { alert("月間lot数を正しく入力して"); return; }
+      if (!isFinite(ibPerLot) || ibPerLot < 0) { alert("IB（$/lot）を正しく入力して"); return; }
+      if (!isFinite(usdJpy) || usdJpy < 0) { alert("ドル円レートを正しく入力して"); return; }
+
+      // 初月ベース
+      const systemMonthly = capital * rate;
+      const ibUSD = monthlyLots * ibPerLot;
+      const ibJPY = ibUSD * usdJpy;
+      const totalMonthly = systemMonthly + ibJPY;
+
+      document.getElementById('systemMonthly').innerText = `${yen(systemMonthly)}円`;
+      document.getElementById('ibMonthlyUSD').innerText = `$${ibUSD.toFixed(2)}`;
+      document.getElementById('ibMonthlyJPY').innerText = `${yen(ibJPY)}円`;
+      document.getElementById('totalMonthlyJPY').innerText = `${yen(totalMonthly)}円`;
+
+      const initialYield = (totalMonthly / capital) * 100;
+      document.getElementById('initialYield').innerText = `${initialYield.toFixed(2)}%`;
+
+      const annualYield = initialYield * 12;
+      document.getElementById('annualYield').innerText = `${annualYield.toFixed(2)}%`;
+
+      // 資産推移（システムは複利、IBは毎月一定円を加算）
+      let balances = [];
+      let labels = [];
+      let current = capital;
+
+      for (let i = 1; i <= months; i++) {
+        const profit = current * rate;
+        current += profit + ibJPY;
+        balances.push(Math.round(current));
+        labels.push(i + 'ヶ月');
+      }
+
+      const ctx = document.getElementById('growthChart').getContext('2d');
+      if (window.chart) window.chart.destroy();
+
+      window.chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: '資産推移（複利＋IB加算）',
+            data: balances
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: true }
+          },
+          scales: {
+            y: {
+              ticks: {
+                callback: function(value){ return yen(value) + "円"; }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function resetDefaults(){
+      document.getElementById('capital').value = 100000;
+      document.getElementById('monthlyRate').value = 4;
+      document.getElementById('monthlyLots').value = 1.3;
+      document.getElementById('ibPerLot').value = 5;
+      document.getElementById('usdJpy').value = 150;
+      document.getElementById('period').value = 12;
+      calculate();
+    }
+
+    window.onload = calculate;
+  </script>
 </body>
 </html>
